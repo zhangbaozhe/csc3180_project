@@ -30,6 +30,7 @@ import math
 import numpy as np
 import os
 import torch
+torch.backends.cudnn.enabled = False
 import xml.etree.ElementTree as ET
 import random
 import matplotlib.pyplot as plt
@@ -300,7 +301,7 @@ class Quadcopter(VecTask):
             camera_props.height = HEIGHT
             camera_handle = self.gym.create_camera_sensor(env, camera_props)
             local_transform = gymapi.Transform()
-            local_transform.p = gymapi.Vec3(0, 0, 0.1)
+            local_transform.p = gymapi.Vec3(0.5, 0, 0.0)
             local_transform.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0,0,1), np.radians(0.0))
             self.gym.attach_camera_to_body(camera_handle, env, actor_handle, local_transform, gymapi.FOLLOW_TRANSFORM)
 
@@ -375,6 +376,7 @@ class Quadcopter(VecTask):
         thrust_action_speed_scale = 200
         self.thrusts += self.dt * thrust_action_speed_scale * actions[:, 0:4]
         self.thrusts[:] = tensor_clamp(self.thrusts, self.thrust_lower_limits, self.thrust_upper_limits)
+        print(self.thrusts[0])
 
         self.forces[:, 2, 2] = self.thrusts[:, 0]
         self.forces[:, 4, 2] = self.thrusts[:, 1]
@@ -447,7 +449,7 @@ class Quadcopter(VecTask):
         # print(self.torch_camera_tensors[0].shape)
         # print(self.torch_camera_tensors[0])
         # plt.imshow(self.torch_camera_tensors[0].cpu(), cmap='gist_gray_r')
-        # plt.pause(0.001)
+        # plt.pause(0.1)
         # plt.imshow(np.zeros_like(self.torch_camera_tensors[0].cpu()), cmap='gist_gray_r')
 
         # TODO: how to use the depth to guide the quad to fly?
@@ -463,7 +465,7 @@ class Quadcopter(VecTask):
         self.obs_buf[..., 7:10] = self.root_linvels / 2
         self.obs_buf[..., 10:13] = self.root_angvels / math.pi
         for env_id in range(self.num_envs):
-            self.obs_buf[env_id, 13:] = self.torch_camera_tensors[env_id].flatten()
+            self.obs_buf[env_id, 13:] = -self.torch_camera_tensors[env_id].flatten()
         # self.obs_buf[..., 13:21] = self.dof_positions
         self.gym.end_access_image_tensors(self.sim)
         return self.obs_buf

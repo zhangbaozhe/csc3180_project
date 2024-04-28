@@ -9,7 +9,7 @@ class QuadcopterNetwork(nn.Module):
     depth image -> CNN
     """
     def __init__(self, params, **kwargs):
-        nn.Module.__init__(self, **kwargs)
+        nn.Module.__init__(self)
 
         print("QuadcopterNetwork")
         actions_num = kwargs.pop('actions_num', 4)
@@ -48,9 +48,10 @@ class QuadcopterNetwork(nn.Module):
         return False
 
     def forward(self, obs):
-        physical_obs = obs['obs'][0:13]
+        batch_size = obs['obs'].shape[0]
+        physical_obs = obs['obs'][..., 0:13]
         # from 1d to (1, 1, 120, 160)
-        depth_image = obs['obs'][13:].reshape(1, 1, 160, 120)
+        depth_image = obs['obs'][..., 13:].reshape(batch_size, 1, 160, 120)
 
         physical_out = self.physical_mlp(physical_obs)
         depth_image_out = self.depth_cnn(depth_image)
@@ -60,7 +61,7 @@ class QuadcopterNetwork(nn.Module):
         value_output = self.value_linear(torch.cat([physical_out, depth_image_out], dim=1))
         if self.central_value:
             return value_output, None
-        return mean_output, 0, value_output, None
+        return mean_output, torch.zeros_like(mean_output), value_output, None
 
 
 from rl_games.algos_torch.network_builder import NetworkBuilder

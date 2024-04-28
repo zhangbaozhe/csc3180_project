@@ -53,3 +53,8 @@ def make(
         force_render=force_render,
     )
     return create_rlgpu_env()
+
+from rl_games.algos_torch import model_builder
+from .customized_networks.quadcopter_network import QuadcopterNetwork
+
+model_builder.register('quadcopter', QuadcopterNetworkBuilder)

@@ -42,6 +42,8 @@ from csc3180_project.utils.torch_jit_utils import *
 from .base.vec_task import VecTask
 
 NUM_OBS = 4
+WIDTH = 160
+HEIGHT = 120
 
 class Quadcopter(VecTask):
 
@@ -55,7 +57,7 @@ class Quadcopter(VecTask):
         # Observations:
         # 0:13 - root state
         # 13:29 - DOF states
-        num_obs = 13 # not using DOF
+        num_obs = 13 + WIDTH * HEIGHT # not using DOF
 
         # Actions:
         # 0:8 - rotor DOF position targets
@@ -294,8 +296,8 @@ class Quadcopter(VecTask):
             camera_props = gymapi.CameraProperties()
             camera_props.enable_tensors = True
             camera_props.horizontal_fov = 75.0
-            camera_props.width = 180
-            camera_props.height = 120
+            camera_props.width = WIDTH
+            camera_props.height = HEIGHT
             camera_handle = self.gym.create_camera_sensor(env, camera_props)
             local_transform = gymapi.Transform()
             local_transform.p = gymapi.Vec3(0, 0, 0.1)
@@ -460,6 +462,8 @@ class Quadcopter(VecTask):
         self.obs_buf[..., 3:7] = self.root_quats
         self.obs_buf[..., 7:10] = self.root_linvels / 2
         self.obs_buf[..., 10:13] = self.root_angvels / math.pi
+        for env_id in range(self.num_envs):
+            self.obs_buf[env_id, 13:] = self.torch_camera_tensors[env_id].flatten()
         # self.obs_buf[..., 13:21] = self.dof_positions
         self.gym.end_access_image_tensors(self.sim)
         return self.obs_buf

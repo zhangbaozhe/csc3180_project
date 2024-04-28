@@ -65,7 +65,7 @@ class QuadcopterNetwork(nn.Module):
 from rl_games.algos_torch.network_builder import NetworkBuilder
 
 class QuadcopterNetworkBuilder(NetworkBuilder):
-    def __init__(self, params, **kwargs):
+    def __init__(self, **kwargs):
         NetworkBuilder.__init__(self)
 
     def load(self, params):

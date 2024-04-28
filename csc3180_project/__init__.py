@@ -55,6 +55,6 @@ def make(
     return create_rlgpu_env()
 
 from rl_games.algos_torch import model_builder
-from .customized_networks.quadcopter_network import QuadcopterNetwork
+from .customized_networks.quadcopter_network import QuadcopterNetworkBuilder
 
-model_builder.register('quadcopter', QuadcopterNetworkBuilder)
+model_builder.register_network('quadcopter', QuadcopterNetworkBuilder)

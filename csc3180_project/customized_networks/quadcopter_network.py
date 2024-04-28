@@ -9,7 +9,7 @@ class QuadcopterNetwork(nn.Module):
     depth image -> CNN
     """
     def __init__(self, params, **kwargs):
-        nn.Module.__init__(self)
+        nn.Module.__init__(self, **kwargs)
         actions_num = kwargs.pop('actions_num', 4)
         input_shape = kwargs.pop('input_shape', (13+160*120,))
         num_inputs = input_shape[0]

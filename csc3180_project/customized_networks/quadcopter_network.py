@@ -10,9 +10,10 @@ class QuadcopterNetwork(nn.Module):
     """
     def __init__(self, params, **kwargs):
         nn.Module.__init__(self, **kwargs)
+
+        print("QuadcopterNetwork")
         actions_num = kwargs.pop('actions_num', 4)
         input_shape = kwargs.pop('input_shape', (13+160*120,))
-        num_inputs = input_shape[0]
 
         self.central_value = params.get('central_value', False)
         self.value_size = params.get('value_size', 1)

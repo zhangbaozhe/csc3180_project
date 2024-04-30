@@ -11,7 +11,8 @@ class QuadcopterNetwork(nn.Module):
     def __init__(self, params, **kwargs):
         nn.Module.__init__(self)
 
-        print("QuadcopterNetwork")
+        print("QuadcopterNetwork init ...")
+
         actions_num = kwargs.pop('actions_num', 4)
         input_shape = kwargs.pop('input_shape', (13+160*120,))
 
@@ -19,9 +20,7 @@ class QuadcopterNetwork(nn.Module):
         self.value_size = params.get('value_size', 1)
 
         self.physical_mlp = nn.Sequential(
-            nn.Linear(13, 512), 
-            nn.ReLU(),
-            nn.Linear(512, 256),
+            nn.Linear(13, 256),
             nn.ReLU(),
             nn.Linear(256, 128),
             nn.ReLU(),
@@ -42,6 +41,11 @@ class QuadcopterNetwork(nn.Module):
             nn.ReLU()
         )
         self.mean_linear = nn.Linear(64+64, actions_num)
+        self.sigma = nn.Parameter(
+            torch.zeros(actions_num, requires_grad=True, dtype=torch.float32), 
+            requires_grad=True
+        )
+        self.sigma_act = nn.ReLU()
         self.value_linear = nn.Linear(64+64, self.value_size)
 
     def is_rnn(self):
@@ -58,10 +62,11 @@ class QuadcopterNetwork(nn.Module):
         depth_image_out = self.depth_fc(depth_image_out)
 
         mean_output = self.mean_linear(torch.cat([physical_out, depth_image_out], dim=1))
+        sigma = mean_output * 0.0 + self.sigma_act(self.sigma)
         value_output = self.value_linear(torch.cat([physical_out, depth_image_out], dim=1))
         if self.central_value:
             return value_output, None
-        return mean_output, torch.zeros_like(mean_output), value_output, None
+        return mean_output, sigma, value_output, None
 
 
 from rl_games.algos_torch.network_builder import NetworkBuilder

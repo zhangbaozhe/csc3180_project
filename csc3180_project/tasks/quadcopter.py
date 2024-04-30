@@ -376,7 +376,7 @@ class Quadcopter(VecTask):
         thrust_action_speed_scale = 200
         self.thrusts += self.dt * thrust_action_speed_scale * actions[:, 0:4]
         self.thrusts[:] = tensor_clamp(self.thrusts, self.thrust_lower_limits, self.thrust_upper_limits)
-        print(self.thrusts[0])
+        # print(self.thrusts[0])
 
         self.forces[:, 2, 2] = self.thrusts[:, 0]
         self.forces[:, 4, 2] = self.thrusts[:, 1]
@@ -514,9 +514,14 @@ def compute_quadcopter_reward(target, root_positions, root_quats, root_linvels, 
     spinnage = torch.abs(root_angvels[..., 2])
     spinnage_reward = 1.0 / (1.0 + spinnage * spinnage)
 
+    # v 
+    v_body = quat_rotate_inverse(root_quats, root_linvels)
+    v_body = torch.nn.functional.normalize(v_body, p=2.0, dim=1)
+    dot = v_body[..., 0]
+
     # combined reward
     # uprigness and spinning only matter when close to the target
-    reward = pos_reward + pos_reward * (up_reward + spinnage_reward)
+    reward = pos_reward + pos_reward * (up_reward + spinnage_reward) + dot
 
     # resets due to misbehavior
     ones = torch.ones_like(reset_buf)

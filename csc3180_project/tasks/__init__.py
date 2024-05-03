@@ -28,6 +28,8 @@
 
 from .cartpole import Cartpole 
 from .quadcopter import Quadcopter
+from .quadcopter_no_obstacle import QuadcopterNoObstacle
+from .quadcopter_no_depth import QuadcopterNoDepth
 
 
 
@@ -36,5 +38,7 @@ from .quadcopter import Quadcopter
 # Mappings from strings to environments
 isaacgym_task_map = {
     "Cartpole": Cartpole,
-    "Quadcopter": Quadcopter,
+    "Quadcopter": Quadcopter, 
+    "QuadcopterNoObstacle": QuadcopterNoObstacle, 
+    "QuadcopterNoDepth": QuadcopterNoDepth
 }

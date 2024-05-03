@@ -43,10 +43,17 @@ from csc3180_project.utils.torch_jit_utils import *
 from .base.vec_task import VecTask
 
 NUM_OBS = 4
+CYLINDER_RADIUS = 1.0
+CYLINDER_HEIGHT = 1.0
+OBS1 = (0.5, 2.0, 1.0)
+OBS2 = (2.0, 0.5, 1.0)
+OBS3 = (3.5, 2.0, 1.0)
+OBS4 = (4.5, 0.5, 1.0)
+
 WIDTH = 160
 HEIGHT = 120
 
-class Quadcopter(VecTask):
+class QuadcopterNoVision(VecTask):
 
     def __init__(self, cfg, rl_device, sim_device, graphics_device_id, headless, virtual_screen_capture, force_render):
         self.cfg = cfg
@@ -58,7 +65,7 @@ class Quadcopter(VecTask):
         # Observations:
         # 0:13 - root state
         # 13:29 - DOF states
-        num_obs = 13 + WIDTH * HEIGHT # not using DOF
+        num_obs = 13 + NUM_OBS * 3 # 3 for position
 
         # Actions:
         # 0:8 - rotor DOF position targets
@@ -294,24 +301,24 @@ class Quadcopter(VecTask):
 
 
             # camera on the quadcopter
-            camera_props = gymapi.CameraProperties()
-            camera_props.enable_tensors = True
-            camera_props.horizontal_fov = 75.0
-            camera_props.width = WIDTH
-            camera_props.height = HEIGHT
-            camera_handle = self.gym.create_camera_sensor(env, camera_props)
-            local_transform = gymapi.Transform()
-            local_transform.p = gymapi.Vec3(0.5, 0, 0.0)
-            local_transform.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0,0,1), np.radians(0.0))
-            self.gym.attach_camera_to_body(camera_handle, env, actor_handle, local_transform, gymapi.FOLLOW_TRANSFORM)
+            # camera_props = gymapi.CameraProperties()
+            # camera_props.enable_tensors = True
+            # camera_props.horizontal_fov = 75.0
+            # camera_props.width = WIDTH
+            # camera_props.height = HEIGHT
+            # camera_handle = self.gym.create_camera_sensor(env, camera_props)
+            # local_transform = gymapi.Transform()
+            # local_transform.p = gymapi.Vec3(0.5, 0, 0.0)
+            # local_transform.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0,0,1), np.radians(0.0))
+            # self.gym.attach_camera_to_body(camera_handle, env, actor_handle, local_transform, gymapi.FOLLOW_TRANSFORM)
 
 
-            self.camera_handles.append(camera_handle)
-            camera_tensor = self.gym.get_camera_image_gpu_tensor(self.sim, env, camera_handle, gymapi.IMAGE_DEPTH)
-            self.camera_tensors.append(camera_tensor)
-            self.torch_camera_tensors.append(
-                gymtorch.wrap_tensor(camera_tensor)
-            )
+            # self.camera_handles.append(camera_handle)
+            # camera_tensor = self.gym.get_camera_image_gpu_tensor(self.sim, env, camera_handle, gymapi.IMAGE_DEPTH)
+            # self.camera_tensors.append(camera_tensor)
+            # self.torch_camera_tensors.append(
+            #     gymtorch.wrap_tensor(camera_tensor)
+            # )
 
             # pretty colors
             chassis_color = gymapi.Vec3(0.8, 0.6, 0.2)
@@ -403,7 +410,7 @@ class Quadcopter(VecTask):
         self.gym.refresh_net_contact_force_tensor(self.sim)
 
         # self.gym.step_graphics(self.sim)
-        self.gym.render_all_camera_sensors(self.sim)
+        # self.gym.render_all_camera_sensors(self.sim)
         # self.gym.start_access_image_tensors(self.sim)
 
         self.compute_observations()
@@ -447,7 +454,7 @@ class Quadcopter(VecTask):
         return space_reset, -1.0 * space_reset
 
     def compute_observations(self):
-        self.gym.start_access_image_tensors(self.sim)
+        # self.gym.start_access_image_tensors(self.sim)
         # print(self.torch_camera_tensors[0].shape)
         # print(self.torch_camera_tensors[0])
         # plt.imshow(self.torch_camera_tensors[0].cpu(), cmap='gist_gray_r')
@@ -466,10 +473,12 @@ class Quadcopter(VecTask):
         self.obs_buf[..., 3:7] = self.root_quats
         self.obs_buf[..., 7:10] = self.root_linvels
         self.obs_buf[..., 10:13] = self.root_angvels
-        for env_id in range(self.num_envs):
-            self.obs_buf[env_id, 13:] = -self.torch_camera_tensors[env_id].T.flatten()
+        self.obs_buf[..., 13:16] = quat_rotate_inverse(self.root_quats, torch.tensor(OBS1, device=self.device))
+        self.obs_buf[..., 16:19] = quat_rotate_inverse(self.root_quats, torch.tensor(OBS2, device=self.device))
+        self.obs_buf[..., 19:22] = quat_rotate_inverse(self.root_quats, torch.tensor(OBS3, device=self.device))
+        self.obs_buf[..., 22:25] = quat_rotate_inverse(self.root_quats, torch.tensor(OBS4, device=self.device))
         # self.obs_buf[..., 13:21] = self.dof_positions
-        self.gym.end_access_image_tensors(self.sim)
+        # self.gym.end_access_image_tensors(self.sim)
         return self.obs_buf
 
     def compute_reward(self):
@@ -498,14 +507,32 @@ class Quadcopter(VecTask):
 #####################################################################
 
 @torch.jit.script
-def compute_quadcopter_reward(target, root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length):
-    # type: (Tuple[float, float, float], Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, float) -> Tuple[Tensor, Tensor]
+def compute_quadcopter_reward(target, obstacles, root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length):
+    # type: (Tuple[float, float, float], Tuple[Tuple[float, float, float]], Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, float) -> Tuple[Tensor, Tensor]
 
     # distance to target
     target_dist = torch.sqrt((target[0] - root_positions[..., 0]) * (target[0] - root_positions[..., 0]) +
                              (target[1] - root_positions[..., 1]) * (target[1] - root_positions[..., 1]) +
                              (target[2] - root_positions[..., 2]) * (target[2] - root_positions[..., 2]))
+    obs1_d = torch.sqrt((obstacles[0][0] - root_positions[..., 0]) * (obstacles[0][0] - root_positions[..., 0]) +
+                        (obstacles[0][1] - root_positions[..., 1]) * (obstacles[0][1] - root_positions[..., 1]) +
+                        (obstacles[0][2] - root_positions[..., 2]) * (obstacles[0][2] - root_positions[..., 2]))
+    obs2_d = torch.sqrt((obstacles[1][0] - root_positions[..., 0]) * (obstacles[1][0] - root_positions[..., 0]) +
+                        (obstacles[1][1] - root_positions[..., 1]) * (obstacles[1][1] - root_positions[..., 1]) +
+                        (obstacles[1][2] - root_positions[..., 2]) * (obstacles[1][2] - root_positions[..., 2]))
+    obs3_d = torch.sqrt((obstacles[2][0] - root_positions[..., 0]) * (obstacles[2][0] - root_positions[..., 0]) +
+                        (obstacles[2][1] - root_positions[..., 1]) * (obstacles[2][1] - root_positions[..., 1]) +
+                        (obstacles[2][2] - root_positions[..., 2]) * (obstacles[2][2] - root_positions[..., 2]))
+    obs4_d = torch.sqrt((obstacles[3][0] - root_positions[..., 0]) * (obstacles[3][0] - root_positions[..., 0]) +
+                        (obstacles[3][1] - root_positions[..., 1]) * (obstacles[3][1] - root_positions[..., 1]) +
+                        (obstacles[3][2] - root_positions[..., 2]) * (obstacles[3][2] - root_positions[..., 2]))
+
     pos_reward = 1.0 / (1.0 + target_dist * target_dist)
+
+    obs1_reward = -1.0 / (1.0 + obs1_d * obs1_d)
+    obs2_reward = -1.0 / (1.0 + obs2_d * obs2_d)
+    obs3_reward = -1.0 / (1.0 + obs3_d * obs3_d)
+    obs4_reward = -1.0 / (1.0 + obs4_d * obs4_d)
 
     # uprightness
     ups = quat_axis(root_quats, 2)
@@ -523,7 +550,7 @@ def compute_quadcopter_reward(target, root_positions, root_quats, root_linvels, 
 
     # combined reward
     # uprigness and spinning only matter when close to the target
-    reward = pos_reward + 0.25 * up_reward + 0.25 * spinnage_reward
+    reward = pos_reward + pos_reward * (up_reward + spinnage_reward) + 0.1 * (obs1_reward + obs2_reward + obs3_reward + obs4_reward)
 
     # resets due to misbehavior
     ones = torch.ones_like(reset_buf)

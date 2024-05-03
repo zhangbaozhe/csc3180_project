@@ -56,5 +56,7 @@ def make(
 
 from rl_games.algos_torch import model_builder
 from .customized_networks.quadcopter_network import QuadcopterNetworkBuilder
+from .customized_networks.quadcopter_network_min_pool import QuadcopterMinPoolNetworkBuilder
 
 model_builder.register_network('quadcopter', QuadcopterNetworkBuilder)
+model_builder.register_network('quadcopter_min_pool', QuadcopterMinPoolNetworkBuilder)

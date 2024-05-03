@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-class QuadcopterNetwork(nn.Module):
+class QuadcopterMinPoolNetwork(nn.Module):
     """
     obs = physical (13D) + depth image (160x120x1)
     physical -> MLP
@@ -29,8 +29,8 @@ class QuadcopterNetwork(nn.Module):
             nn.Linear(64, 20), 
             nn.ReLU(), 
         )
-        self.depth_mean_pool = nn.Sequential(
-            nn.AvgPool2d(kernel_size=40, stride=40), 
+        self.depth_min_pool = nn.Sequential(
+            nn.MaxPool2d(kernel_size=40, stride=40), 
             nn.Flatten(), 
         )
         self.mean_linear = nn.Sequential(
@@ -57,7 +57,7 @@ class QuadcopterNetwork(nn.Module):
         depth_image = obs['obs'][..., 13:].reshape(batch_size, 1, 120, 160)
 
         physical_out = self.physical_mlp(physical_obs)
-        depth_image_out = self.depth_mean_pool(depth_image)
+        depth_image_out = -self.depth_min_pool(-depth_image)
 
         mean_output = self.mean_linear(torch.cat([physical_out, depth_image_out], dim=1))
         sigma = mean_output * 0.0 + self.sigma_act(self.sigma)
@@ -69,7 +69,7 @@ class QuadcopterNetwork(nn.Module):
 
 from rl_games.algos_torch.network_builder import NetworkBuilder
 
-class QuadcopterNetworkBuilder(NetworkBuilder):
+class QuadcopterMinPoolNetworkBuilder(NetworkBuilder):
     def __init__(self, **kwargs):
         NetworkBuilder.__init__(self)
 
@@ -77,7 +77,7 @@ class QuadcopterNetworkBuilder(NetworkBuilder):
         self.params = params
     
     def build(self, name, **kwargs):
-        return QuadcopterNetwork(self.params, **kwargs)
+        return QuadcopterMinPoolNetwork(self.params, **kwargs)
 
     def __call__(self, name, **kwargs):
         return self.build(name, **kwargs)

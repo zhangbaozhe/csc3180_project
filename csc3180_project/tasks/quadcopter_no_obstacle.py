@@ -42,11 +42,14 @@ from isaacgym import gymutil, gymtorch, gymapi
 from csc3180_project.utils.torch_jit_utils import *
 from .base.vec_task import VecTask
 
-NUM_OBS = 4
+NUM_OBS = 0
 WIDTH = 160
 HEIGHT = 120
+LOWER = (-0.5, -0.5, 0.0)
+UPPER = (5.5, 2.5, 2.0)
+INF_DEPTH_IMAGE = 1e6
 
-class Quadcopter(VecTask):
+class QuadcopterNoObstacle(VecTask):
 
     def __init__(self, cfg, rl_device, sim_device, graphics_device_id, headless, virtual_screen_capture, force_render):
         self.cfg = cfg
@@ -272,19 +275,19 @@ class Quadcopter(VecTask):
             env = self.gym.create_env(self.sim, lower, upper, num_per_row)
             actor_handle = self.gym.create_actor(env, asset, default_pose, "quadcopter", i, 0, 0)
 
-            obs1 = gymapi.Transform()
-            obs1.p = gymapi.Vec3(0.5, 2.0, 1.0)
-            obs2 = gymapi.Transform()
-            obs2.p = gymapi.Vec3(2.0, 0.5, 1.0)
-            obs3 = gymapi.Transform()
-            obs3.p = gymapi.Vec3(3.5, 2.0, 1.0)
-            obs4 = gymapi.Transform()
-            obs4.p = gymapi.Vec3(4.5, 0.5, 1.0)
+            # obs1 = gymapi.Transform()
+            # obs1.p = gymapi.Vec3(0.5, 2.0, 1.0)
+            # obs2 = gymapi.Transform()
+            # obs2.p = gymapi.Vec3(2.0, 0.5, 1.0)
+            # obs3 = gymapi.Transform()
+            # obs3.p = gymapi.Vec3(3.5, 2.0, 1.0)
+            # obs4 = gymapi.Transform()
+            # obs4.p = gymapi.Vec3(4.5, 0.5, 1.0)
 
-            self.gym.create_actor(env, ball_asset, obs1, "obs1", i, 0, 0)
-            self.gym.create_actor(env, ball_asset, obs2, "obs2", i, 0, 0)
-            self.gym.create_actor(env, ball_asset, obs3, "obs3", i, 0, 0)
-            self.gym.create_actor(env, ball_asset, obs4, "obs4", i, 0, 0)
+            # self.gym.create_actor(env, ball_asset, obs1, "obs1", i, 0, 0)
+            # self.gym.create_actor(env, ball_asset, obs2, "obs2", i, 0, 0)
+            # self.gym.create_actor(env, ball_asset, obs3, "obs3", i, 0, 0)
+            # self.gym.create_actor(env, ball_asset, obs4, "obs4", i, 0, 0)
 
             dof_props = self.gym.get_actor_dof_properties(env, actor_handle)
             dof_props['driveMode'].fill(gymapi.DOF_MODE_POS)
@@ -293,25 +296,25 @@ class Quadcopter(VecTask):
             self.gym.set_actor_dof_properties(env, actor_handle, dof_props)
 
 
-            # camera on the quadcopter
-            camera_props = gymapi.CameraProperties()
-            camera_props.enable_tensors = True
-            camera_props.horizontal_fov = 75.0
-            camera_props.width = WIDTH
-            camera_props.height = HEIGHT
-            camera_handle = self.gym.create_camera_sensor(env, camera_props)
-            local_transform = gymapi.Transform()
-            local_transform.p = gymapi.Vec3(0.5, 0, 0.0)
-            local_transform.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0,0,1), np.radians(0.0))
-            self.gym.attach_camera_to_body(camera_handle, env, actor_handle, local_transform, gymapi.FOLLOW_TRANSFORM)
+            # camera on the quadcopter -> NO need here
+            # camera_props = gymapi.CameraProperties()
+            # camera_props.enable_tensors = True
+            # camera_props.horizontal_fov = 75.0
+            # camera_props.width = WIDTH
+            # camera_props.height = HEIGHT
+            # camera_handle = self.gym.create_camera_sensor(env, camera_props)
+            # local_transform = gymapi.Transform()
+            # local_transform.p = gymapi.Vec3(0.5, 0, 0.0)
+            # local_transform.r = gymapi.Quat.from_axis_angle(gymapi.Vec3(0,0,1), np.radians(0.0))
+            # self.gym.attach_camera_to_body(camera_handle, env, actor_handle, local_transform, gymapi.FOLLOW_TRANSFORM)
 
 
-            self.camera_handles.append(camera_handle)
-            camera_tensor = self.gym.get_camera_image_gpu_tensor(self.sim, env, camera_handle, gymapi.IMAGE_DEPTH)
-            self.camera_tensors.append(camera_tensor)
-            self.torch_camera_tensors.append(
-                gymtorch.wrap_tensor(camera_tensor)
-            )
+            # self.camera_handles.append(camera_handle)
+            # camera_tensor = self.gym.get_camera_image_gpu_tensor(self.sim, env, camera_handle, gymapi.IMAGE_DEPTH)
+            # self.camera_tensors.append(camera_tensor)
+            # self.torch_camera_tensors.append(
+            #     gymtorch.wrap_tensor(camera_tensor)
+            # )
 
             # pretty colors
             chassis_color = gymapi.Vec3(0.8, 0.6, 0.2)
@@ -340,16 +343,19 @@ class Quadcopter(VecTask):
         self.dof_states[env_ids] = self.initial_dof_states[env_ids]
 
         actor_indices = self.all_actor_indices[env_ids].flatten()
-        temp_xyz = random.sample(self.free_xyz, 1)[0]
+        # temp_xyz = random.sample(self.free_xyz, 1)[0]
 
         self.root_states[env_ids] = self.initial_root_states[env_ids]
-        self.root_states[env_ids, 0] = temp_xyz[0] + torch_rand_float(-0.5, 0.5, (num_resets, 1), self.device).flatten()
-        self.root_states[env_ids, 1] = temp_xyz[1] + torch_rand_float(-0.5, 0.5, (num_resets, 1), self.device).flatten()
-        self.root_states[env_ids, 2] = temp_xyz[2] + torch_rand_float(-0.25, 0.25, (num_resets, 1), self.device).flatten()
+        # self.root_states[env_ids, 0] = temp_xyz[0] + torch_rand_float(-0.5, 0.5, (num_resets, 1), self.device).flatten()
+        # self.root_states[env_ids, 1] = temp_xyz[1] + torch_rand_float(-0.5, 0.5, (num_resets, 1), self.device).flatten()
+        # self.root_states[env_ids, 2] = temp_xyz[2] + torch_rand_float(-0.25, 0.25, (num_resets, 1), self.device).flatten()
+        self.root_states[env_ids, 0] = torch_rand_float(LOWER[0], UPPER[0], (num_resets, 1), self.device).flatten()
+        self.root_states[env_ids, 1] = torch_rand_float(LOWER[1], UPPER[1], (num_resets, 1), self.device).flatten()
+        self.root_states[env_ids, 2] = torch_rand_float(LOWER[2], UPPER[2], (num_resets, 1), self.device).flatten()
 
         self.root_states[env_ids, 7] += torch_rand_float(-0.5, 0.5, (num_resets, 1), self.device).flatten()
         self.root_states[env_ids, 8] += torch_rand_float(-0.5, 0.5, (num_resets, 1), self.device).flatten()
-        self.root_states[env_ids, 9] += torch_rand_float(-0.25, 0.25, (num_resets, 1), self.device).flatten()
+        self.root_states[env_ids, 9] += torch_rand_float(-0.5, 0.5, (num_resets, 1), self.device).flatten()
 
         self.gym.set_actor_root_state_tensor_indexed(self.sim, self.root_tensor, gymtorch.unwrap_tensor(actor_indices), num_resets)
 
@@ -400,10 +406,10 @@ class Quadcopter(VecTask):
 
         self.gym.refresh_actor_root_state_tensor(self.sim)
         # self.gym.refresh_dof_state_tensor(self.sim)
-        self.gym.refresh_net_contact_force_tensor(self.sim)
+        # self.gym.refresh_net_contact_force_tensor(self.sim)
 
         # self.gym.step_graphics(self.sim)
-        self.gym.render_all_camera_sensors(self.sim)
+        # self.gym.render_all_camera_sensors(self.sim)
         # self.gym.start_access_image_tensors(self.sim)
 
         self.compute_observations()
@@ -447,7 +453,7 @@ class Quadcopter(VecTask):
         return space_reset, -1.0 * space_reset
 
     def compute_observations(self):
-        self.gym.start_access_image_tensors(self.sim)
+        # self.gym.start_access_image_tensors(self.sim)
         # print(self.torch_camera_tensors[0].shape)
         # print(self.torch_camera_tensors[0])
         # plt.imshow(self.torch_camera_tensors[0].cpu(), cmap='gist_gray_r')
@@ -467,9 +473,10 @@ class Quadcopter(VecTask):
         self.obs_buf[..., 7:10] = self.root_linvels
         self.obs_buf[..., 10:13] = self.root_angvels
         for env_id in range(self.num_envs):
-            self.obs_buf[env_id, 13:] = -self.torch_camera_tensors[env_id].T.flatten()
+            # self.obs_buf[env_id, 13:] = -self.torch_camera_tensors[env_id].T.flatten()
+            self.obs_buf[env_id, 13:] = INF_DEPTH_IMAGE
         # self.obs_buf[..., 13:21] = self.dof_positions
-        self.gym.end_access_image_tensors(self.sim)
+        # self.gym.end_access_image_tensors(self.sim)
         return self.obs_buf
 
     def compute_reward(self):
@@ -523,7 +530,7 @@ def compute_quadcopter_reward(target, root_positions, root_quats, root_linvels, 
 
     # combined reward
     # uprigness and spinning only matter when close to the target
-    reward = pos_reward + 0.25 * up_reward + 0.25 * spinnage_reward
+    reward = pos_reward + 0.25 * (up_reward + spinnage_reward)
 
     # resets due to misbehavior
     ones = torch.ones_like(reset_buf)

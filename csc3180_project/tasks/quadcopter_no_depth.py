@@ -49,11 +49,12 @@ OBS1 = (0.5, 2.0, 1.0)
 OBS2 = (2.0, 0.5, 1.0)
 OBS3 = (3.5, 2.0, 1.0)
 OBS4 = (4.5, 0.5, 1.0)
+OBSTACLES = (OBS1, OBS2, OBS3, OBS4)
 
 WIDTH = 160
 HEIGHT = 120
 
-class QuadcopterNoVision(VecTask):
+class QuadcopterNoDepth(VecTask):
 
     def __init__(self, cfg, rl_device, sim_device, graphics_device_id, headless, virtual_screen_capture, force_render):
         self.cfg = cfg
@@ -79,6 +80,7 @@ class QuadcopterNoVision(VecTask):
         self.camera_tensors = []
         self.torch_camera_tensors = []
 
+
         super().__init__(config=self.cfg, rl_device=rl_device, sim_device=sim_device, graphics_device_id=graphics_device_id, headless=headless, virtual_screen_capture=virtual_screen_capture, force_render=force_render)
 
         self.root_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)
@@ -86,6 +88,15 @@ class QuadcopterNoVision(VecTask):
 
         vec_root_tensor = gymtorch.wrap_tensor(self.root_tensor).view(self.num_envs, 13 * (NUM_OBS + 1))
         vec_dof_tensor = gymtorch.wrap_tensor(self.dof_state_tensor).view(self.num_envs, dofs_per_env, 2)
+
+        self.OBS1 = torch.zeros((self.num_envs, 3), device=self.device, dtype=torch.float32)
+        self.OBS1[..., 0:3] = torch.tensor(OBS1, device=self.device, dtype=torch.float32)
+        self.OBS2 = torch.zeros((self.num_envs, 3), device=self.device, dtype=torch.float32)
+        self.OBS2[..., 0:3] = torch.tensor(OBS2, device=self.device, dtype=torch.float32)
+        self.OBS3 = torch.zeros((self.num_envs, 3), device=self.device, dtype=torch.float32)
+        self.OBS3[..., 0:3] = torch.tensor(OBS3, device=self.device, dtype=torch.float32)
+        self.OBS4 = torch.zeros((self.num_envs, 3), device=self.device, dtype=torch.float32)
+        self.OBS4[..., 0:3] = torch.tensor(OBS4, device=self.device, dtype=torch.float32)
 
         self.root_states = vec_root_tensor
         self.root_positions = vec_root_tensor[..., 0:3]
@@ -473,10 +484,10 @@ class QuadcopterNoVision(VecTask):
         self.obs_buf[..., 3:7] = self.root_quats
         self.obs_buf[..., 7:10] = self.root_linvels
         self.obs_buf[..., 10:13] = self.root_angvels
-        self.obs_buf[..., 13:16] = quat_rotate_inverse(self.root_quats, torch.tensor(OBS1, device=self.device))
-        self.obs_buf[..., 16:19] = quat_rotate_inverse(self.root_quats, torch.tensor(OBS2, device=self.device))
-        self.obs_buf[..., 19:22] = quat_rotate_inverse(self.root_quats, torch.tensor(OBS3, device=self.device))
-        self.obs_buf[..., 22:25] = quat_rotate_inverse(self.root_quats, torch.tensor(OBS4, device=self.device))
+        self.obs_buf[..., 13:16] = self.OBS1 - self.root_positions 
+        self.obs_buf[..., 16:19] = self.OBS2 - self.root_positions
+        self.obs_buf[..., 19:22] = self.OBS3 - self.root_positions
+        self.obs_buf[..., 22:25] = self.OBS4 - self.root_positions
         # self.obs_buf[..., 13:21] = self.dof_positions
         # self.gym.end_access_image_tensors(self.sim)
         return self.obs_buf
@@ -486,6 +497,7 @@ class QuadcopterNoVision(VecTask):
         collision_reset, collision_reward = self._compute_collision()
         reward, reset = compute_quadcopter_reward(
             self.target, 
+            OBSTACLES, 
             self.root_positions,
             self.root_quats,
             self.root_linvels,
@@ -508,7 +520,7 @@ class QuadcopterNoVision(VecTask):
 
 @torch.jit.script
 def compute_quadcopter_reward(target, obstacles, root_positions, root_quats, root_linvels, root_angvels, reset_buf, progress_buf, max_episode_length):
-    # type: (Tuple[float, float, float], Tuple[Tuple[float, float, float]], Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, float) -> Tuple[Tensor, Tensor]
+    # type: (Tuple[float, float, float], Tuple[Tuple[float, float, float], Tuple[float, float, float], Tuple[float, float, float], Tuple[float, float, float]], Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, float) -> Tuple[Tensor, Tensor]
 
     # distance to target
     target_dist = torch.sqrt((target[0] - root_positions[..., 0]) * (target[0] - root_positions[..., 0]) +
@@ -550,7 +562,7 @@ def compute_quadcopter_reward(target, obstacles, root_positions, root_quats, roo
 
     # combined reward
     # uprigness and spinning only matter when close to the target
-    reward = pos_reward + pos_reward * (up_reward + spinnage_reward) + 0.1 * (obs1_reward + obs2_reward + obs3_reward + obs4_reward)
+    reward = pos_reward + 0.1 * (up_reward + spinnage_reward) + 0.1 * (obs1_reward + obs2_reward + obs3_reward + obs4_reward)
 
     # resets due to misbehavior
     ones = torch.ones_like(reset_buf)

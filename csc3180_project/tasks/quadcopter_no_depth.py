@@ -562,7 +562,8 @@ def compute_quadcopter_reward(target, obstacles, root_positions, root_quats, roo
 
     # combined reward
     # uprigness and spinning only matter when close to the target
-    reward = pos_reward + 0.1 * (up_reward + spinnage_reward) + 0.1 * (obs1_reward + obs2_reward + obs3_reward + obs4_reward)
+    # reward = pos_reward + 0.1 * (up_reward + spinnage_reward) + 0.1 * (obs1_reward + obs2_reward + obs3_reward + obs4_reward)
+    reward = pos_reward + 0.1 * (up_reward + spinnage_reward) 
 
     # resets due to misbehavior
     ones = torch.ones_like(reset_buf)

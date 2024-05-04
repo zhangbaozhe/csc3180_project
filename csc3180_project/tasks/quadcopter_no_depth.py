@@ -358,7 +358,8 @@ class QuadcopterNoDepth(VecTask):
         self.dof_states[env_ids] = self.initial_dof_states[env_ids]
 
         actor_indices = self.all_actor_indices[env_ids].flatten()
-        temp_xyz = random.sample(self.free_xyz, 1)[0]
+        # temp_xyz = random.sample(self.free_xyz, 1)[0]
+        temp_xyz = self.free_xyz[0]
 
         self.root_states[env_ids] = self.initial_root_states[env_ids]
         self.root_states[env_ids, 0] = temp_xyz[0] + torch_rand_float(-0.5, 0.5, (num_resets, 1), self.device).flatten()
